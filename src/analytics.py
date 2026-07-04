@@ -48,3 +48,33 @@ def run_stationarity_check(series: pd.Series) -> dict:
         }
     except Exception as e:
         return {"error": f"ADF mathematical calculation failure: {str(e)}"}
+    # ... your existing code is up here (load_portfolio_data, detect_return_outliers, etc.) ...
+
+def run_stationarity_check(series: pd.Series) -> dict:
+    """Executes an Augmented Dickey-Fuller test with structured results output."""
+    try:
+        res = adfuller(series.dropna())
+        return {
+            "adf_statistic": float(res[0]),
+            "p_value": float(res[1]),
+            "is_stationary": bool(res[1] <= 0.05)
+        }
+    except Exception as e:
+        return {"error": f"ADF mathematical calculation failure: {str(e)}"}
+
+# === PASTE IT RIGHT HERE AT THE BOTTOM ===
+def split_data_chronologically(df: pd.DataFrame, split_date: str = "2025-01-01"):
+    """
+    Splits financial datasets sequentially to preserve temporal order.
+    Eliminates forward-looking data leakage in backtesting.
+    """
+    if df.empty:
+        raise ValueError("Cannot split an empty DataFrame.")
+        
+    train = df[df.index < split_date]
+    test = df[df.index >= split_date]
+    
+    if train.empty or test.empty:
+        raise RuntimeError(f"Split date '{split_date}' resulted in an empty train or test set.")
+        
+    return train, test
