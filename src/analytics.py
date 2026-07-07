@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from statsmodels.tsa.stattools import adfuller
 
 def load_portfolio_data(file_path: str) -> pd.DataFrame:
@@ -51,28 +52,17 @@ def split_data_chronologically(df: pd.DataFrame, split_date: str = "2025-01-01")
     return train, test
 
 def calculate_risk_metrics(df_returns: pd.DataFrame, risk_free_rate: float = 0.0) -> dict:
-    """
-    Calculates Annualized Sharpe Ratio and 95% Historical Value at Risk (VaR).
-    Fulfills the remaining Task 1 Risk Metrics requirement.
-    """
+    """Calculates Annualized Sharpe Ratio and 95% Historical Value at Risk (VaR)."""
     metrics = {}
-    # Assuming 252 trading days in a typical market year
     trading_days = 252
-    
     for asset in df_returns.columns:
         series = df_returns[asset].dropna()
-        
-        # Annualized Sharpe Ratio
         mean_return = series.mean()
         std_dev = series.std()
         annualized_return = mean_return * trading_days
         annualized_vol = std_dev * np.sqrt(trading_days)
-        
         sharpe = (annualized_return - risk_free_rate) / annualized_vol if annualized_vol != 0 else 0
-        
-        # 95% Historical Value at Risk
         var_95 = np.percentile(series, 5)
-        
         metrics[asset] = {
             "Annualized Return": annualized_return,
             "Annualized Volatility": annualized_vol,
@@ -80,3 +70,20 @@ def calculate_risk_metrics(df_returns: pd.DataFrame, risk_free_rate: float = 0.0
             "95% Historical VaR": var_95
         }
     return metrics
+
+def calculate_forecast_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    """Calculates performance comparison metrics: MAE, RMSE, and MAPE."""
+    mae = np.mean(np.abs(y_true - y_pred))
+    rmse = np.sqrt(np.mean((y_true - y_pred) ** 2))
+    # Filter zeros to safeguard division operations in MAPE
+    mask = y_true != 0
+    mape = np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100
+    return {"MAE": mae, "RMSE": rmse, "MAPE": mape}
+
+def create_windowed_sequences(data: np.ndarray, window_size: int = 60):
+    """Prepares sequential matrix data structures matching window sizes for LSTM input."""
+    X, y = [], []
+    for i in range(len(data) - window_size):
+        X.append(data[i:(i + window_size)])
+        y.append(data[i + window_size])
+    return np.array(X), np.array(y)

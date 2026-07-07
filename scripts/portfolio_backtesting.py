@@ -4,84 +4,62 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Ensure local src module is discoverable
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.analytics import load_portfolio_data
 
 output_dir = "data/processed"
 os.makedirs(output_dir, exist_ok=True)
 
-print("--- Step 1: Loading Asset Return Data for Backtesting ---")
-try:
-    df_returns = load_portfolio_data("data/processed/assets_returns.csv")
-    print("Successfully loaded return matrices.")
-except Exception as e:
-    print(f"Data Load Error: {str(e)}")
-    sys.exit(1)
+print("--- Step 1: Isolating Final-Year Backtesting Window (July 2025 - June 2026) ---")
+df_returns = load_portfolio_data("data/processed/assets_returns.csv")
+assets = ["BND", "SPY", "TSLA"]
 
-# Define Allocation Strategies
-# Note: Ensure asset ordering aligns perfectly with DataFrame columns
-# df_returns columns are ['BND', 'SPY', 'TSLA'] based on prior script output
-assets = list(df_returns.columns)
+# Enforce clean isolation of the final year dataset window
+backtest_window = df_returns[df_returns.index >= "2025-07-01"].copy()
+print(f"Isolated backtesting sessions: {len(backtest_window)}")
 
-# Task 4 Optimized Portfolio Weights
 opt_weights = np.array([0.5781, 0.3230, 0.0989])
-
-# Institutional Benchmark Weights (60% SPY / 40% BND / 0% TSLA)
 bench_weights = np.array([0.40, 0.60, 0.00])
 
-print("\n--- Step 2: Running Historical Performance Backtest ---")
-# Compute daily portfolio returns
-df_returns['Optimized_Portfolio'] = df_returns[assets].dot(opt_weights)
-df_returns['Benchmark_Portfolio'] = df_returns[assets].dot(bench_weights)
+print("\n--- Step 2: Simulating Allocation Performance Path ---")
+backtest_window['Optimized_Portfolio'] = backtest_window[assets].dot(opt_weights)
+backtest_window['Benchmark_Portfolio'] = backtest_window[assets].dot(bench_weights)
 
-# Calculate Cumulative Growth (growth of $1 investment)
-cum_optimized = (1 + df_returns['Optimized_Portfolio']).cumprod()
-cum_benchmark = (1 + df_returns['Benchmark_Portfolio']).cumprod()
+cum_optimized = (1 + backtest_window['Optimized_Portfolio']).cumprod()
+cum_benchmark = (1 + backtest_window['Benchmark_Portfolio']).cumprod()
 
-# Calculate Performance Metrics
 trading_days = 252
-
-# Optimized Portfolio Metrics
-opt_mean = df_returns['Optimized_Portfolio'].mean() * trading_days
-opt_vol = df_returns['Optimized_Portfolio'].std() * np.sqrt(trading_days)
+opt_mean = backtest_window['Optimized_Portfolio'].mean() * trading_days
+opt_vol = backtest_window['Optimized_Portfolio'].std() * np.sqrt(trading_days)
 opt_sharpe = opt_mean / opt_vol
 
-# Benchmark Portfolio Metrics
-bench_mean = df_returns['Benchmark_Portfolio'].mean() * trading_days
-bench_vol = df_returns['Benchmark_Portfolio'].std() * np.sqrt(trading_days)
+bench_mean = backtest_window['Benchmark_Portfolio'].mean() * trading_days
+bench_vol = backtest_window['Benchmark_Portfolio'].std() * np.sqrt(trading_days)
 bench_sharpe = bench_mean / bench_vol
 
-# Calculate Maximum Drawdowns
-def calculate_max_drawdown(cum_returns_series):
-    rolling_max = cum_returns_series.cummax()
-    drawdowns = (cum_returns_series - rolling_max) / rolling_max
-    return drawdowns.min()
+def get_max_drawdown(series):
+    return ((series - series.cummax()) / series.cummax()).min()
 
-opt_max_dd = calculate_max_drawdown(cum_optimized)
-bench_max_dd = calculate_max_drawdown(cum_benchmark)
-
-print("\n📊 HISTORICAL BACKTEST PERFORMANCE SUMMARY (2015 - 2026):")
+print("\n====================================================================")
+print("FINAL ISOLATED OUT-OF-SAMPLE PERFORMANCE EVALUATION SUMMARY MATRIX")
 print("====================================================================")
 print(f"METRIC                 OPTIMIZED MPT PORTFOLIO     60/40 BENCHMARK")
 print("====================================================================")
 print(f"Annualized Return:     {opt_mean:.2%}{'':<24}{bench_mean:.2%}")
 print(f"Annualized Volatility: {opt_vol:.2%}{'':<24}{bench_vol:.2%}")
 print(f"Sharpe Ratio:          {opt_sharpe:.4f}{'':<24}{bench_sharpe:.4f}")
-print(f"Maximum Drawdown:      {opt_max_dd:.2%}{'':<24}{bench_max_dd:.2%}")
-print(f"Final Value of $1:     ${cum_optimized.iloc[-1]:.2f}{'':<23}${cum_benchmark.iloc[-1]:.2f}")
+print(f"Maximum Drawdown:      {get_max_drawdown(cum_optimized):.2%}{'':<24}{get_max_drawdown(cum_benchmark):.2%}")
+print(f"Total Capital Return:  {((cum_optimized.iloc[-1] - 1) * 100):.2f}%{'':<21}{((cum_benchmark.iloc[-1] - 1) * 100):.2f}%")
 print("====================================================================")
 
-print("\n--- Step 3: Generating Cumulative Growth Plot ---")
 plt.figure(figsize=(11, 5))
-plt.plot(cum_optimized, label=f"Optimized MPT Portfolio (Sharpe: {opt_sharpe:.2f})", color='emerald' if 'emerald' in plt.cm.datad else 'green', lw=2)
-plt.plot(cum_benchmark, label=f"Institutional Benchmark 60/40 (Sharpe: {bench_sharpe:.2f})", color='navy', linestyle='--', lw=1.5)
-plt.title("Portfolio Cumulative Growth Comparison ($1 Base Investment)")
+plt.plot(cum_optimized, label="GMF Optimized MPT Strategy Model Portfolio", color='green', lw=2)
+plt.plot(cum_benchmark, label="Static Institutional Balanced 60/40 Benchmark", color='navy', linestyle='--', lw=1.5)
+plt.title("Isolated Final Year Strategic Performance Validation Curve ($1 Base Investment)")
 plt.xlabel("Date")
-plt.ylabel("Portfolio Value ($)")
+plt.ylabel("Portfolio Accumulated Value ($)")
 plt.legend()
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, "backtest_performance.png"))
 plt.close()
-
-print(f"Performance plotting complete. Artifact saved to '{output_dir}/backtest_performance.png'.")
+print(f"Artifact completely saved to '{output_dir}/backtest_performance.png'.")
