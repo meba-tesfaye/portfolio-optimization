@@ -87,3 +87,14 @@ def create_windowed_sequences(data: np.ndarray, window_size: int = 60):
         X.append(data[i:(i + window_size)])
         y.append(data[i + window_size])
     return np.array(X), np.array(y)
+
+def scale_minmax(series_data: np.ndarray):
+    """Normalizes an array-like series strictly within a [0, 1] range for deep learning models."""
+    min_val = np.min(series_data)
+    max_val = np.max(series_data)
+    scaled = (series_data - min_val) / (max_val - min_val) if (max_val - min_val) != 0 else series_data
+    return scaled, min_val, max_val
+
+def inverse_scale_minmax(scaled_data: np.ndarray, min_val: float, max_val: float):
+    """Reverts normalized arrays back to their original nominal financial price scales."""
+    return scaled_data * (max_val - min_val) + min_val
